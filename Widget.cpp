@@ -11,7 +11,8 @@
 
 
 Widget::Widget(QWidget *parent)
-    : QWidget(parent)
+    : QWidget(parent),
+      mapChanges(*this)
 {
     setMouseTracking(true);
 
@@ -26,6 +27,14 @@ Widget::Widget(QWidget *parent)
     {
         changeMap(-1);
     });
+
+    undoShortcut = new QShortcut(QKeySequence(Qt::Key_Z + Qt::CTRL), this);
+    connect(undoShortcut, &QShortcut::activated, std::bind(&MapChanges::undo, &mapChanges));
+
+    redoShortcut = new QShortcut(QKeySequence(Qt::Key_U + Qt::CTRL), this);
+    connect(redoShortcut, &QShortcut::activated, std::bind(&MapChanges::redo, &mapChanges));
+
+    updateShortcuts();
 }
 
 Widget::~Widget()
@@ -95,21 +104,35 @@ void Widget::updateTooltip(const QPoint& pos)
     }
 }
 
-void Widget::changeMap(int k, const QPoint& pos)
+void Widget::updateShortcuts()
 {
-    for (int x = std::max(0, pos.x() - brushSize); x <= std::min(width() - 1, pos.x() + brushSize); ++x)
-        for (int y = std::max(0, pos.y() - brushSize); y <= std::min(height() - 1, pos.y() + brushSize); ++y)
+    undoShortcut->setEnabled(mapChanges.canUndo());
+    redoShortcut->setEnabled(mapChanges.canRedo());
+}
+
+void Widget::changeMap(const MapChangeData& data)
+{
+    for (int x = std::max(0, data.pos.x() - data.brushSize); x <= std::min(width() - 1, data.pos.x() + data.brushSize); ++x)
+        for (int y = std::max(0, data.pos.y() - data.brushSize); y <= std::min(height() - 1, data.pos.y() + data.brushSize); ++y)
         {
-            auto r = sqrt((x - pos.x()) * (x - pos.x()) + (y - pos.y()) * (y - pos.y()));
+            auto r = static_cast<int>(sqrt((x - data.pos.x()) * (x - data.pos.x()) + (y - data.pos.y()) * (y - data.pos.y())));
 
             if (r <= 10)
             {
-                (*groundMap)[y * width() + x] += k * (brushSize + 2 - r) / 2;
+                (*groundMap)[y * width() + x] += data.k * (data.brushSize + 2 - r) / 2;
             }
         }
 
     updateImage();
-    updateTooltip(pos);
+    updateTooltip(data.pos);
+    updateShortcuts();
+}
+
+void Widget::changeMap(int k, const QPoint& pos)
+{
+    MapChangeData data = {k, pos, brushSize};
+    changeMap(data);
+    mapChanges.addChange(data);
 }
 
 void Widget::changeMap(int k)

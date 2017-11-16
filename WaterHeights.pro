@@ -27,4 +27,5 @@ SOURCES += main.cpp\
         Widget.cpp
 
 HEADERS  += Widget.h \
-    HeightsEngine.h
+    HeightsEngine.h \
+    MapChagnges.h
