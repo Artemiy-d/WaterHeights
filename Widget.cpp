@@ -8,7 +8,7 @@
 #include <QWheelEvent>
 
 #include <math.h>
-
+#include <chrono>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
@@ -62,7 +62,9 @@ void Widget::paintEvent(QPaintEvent *)
 
 void Widget::updateImage()
 {
+    const auto t0 = std::chrono::steady_clock::now();
     waterHeights = calculateWater(*groundMap, waterLevel);
+    const auto t1 = std::chrono::steady_clock::now();
 
     QColor blue = QColor(Qt::blue).lighter(120);
     QColor gray(Qt::gray);
@@ -78,7 +80,11 @@ void Widget::updateImage()
             ++index;
         }
 
-    setWindowTitle("Water: " + QString::number(waterHeights.second));
+    const auto t2 = std::chrono::steady_clock::now();
+
+    setWindowTitle(QString("Water: %1; CalcTime: %2; ImageTime: %3;").arg(QString::number(waterHeights.second),
+                                                                          QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()),
+                                                                          QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count())));
 
     repaint();
 }
