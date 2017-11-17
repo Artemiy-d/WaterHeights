@@ -14,8 +14,6 @@ Widget::Widget(QWidget *parent)
     : QWidget(parent),
       mapChanges(*this)
 {
-    setMouseTracking(true);
-
     auto addShortcut = new QShortcut(QKeySequence(Qt::Key_1), this);
     connect(addShortcut, &QShortcut::activated, [this]()
     {
@@ -86,19 +84,13 @@ void Widget::mousePressEvent(QMouseEvent *event)
 
 void Widget::mouseMoveEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::NoButton)
-    {
-        updateTooltip(event->pos());
-    }
-    else
-    {
-        changeMap(event->buttons().testFlag(Qt::LeftButton) ? 1 : -1, event->pos());
-    }
+    changeMap(event->buttons().testFlag(Qt::LeftButton) ? 1 : -1, event->pos());
 }
 
-void Widget::updateTooltip(const QPoint& pos)
+void Widget::updateTooltip()
 {
-    auto index = width() * pos.y() + pos.x();
+    const auto pos = mapFromGlobal(QCursor::pos());
+    const auto index = width() * pos.y() + pos.x();
     if (rect().contains(pos))
     {
         QString text = "Ground: " + QString::number((*groundMap)[index]);
@@ -131,7 +123,6 @@ void Widget::changeMap(const MapChangeData& data)
         }
 
     updateImage();
-    updateTooltip(data.pos);
     updateShortcuts();
 }
 
@@ -150,4 +141,13 @@ void Widget::changeMap(int k)
 void Widget::wheelEvent(QWheelEvent *event)
 {
     brushSize = qBound(4, 20, brushSize + event->delta());
+}
+
+bool Widget::event(QEvent *event)
+{
+    if (event->type() == QEvent::ToolTip)
+    {
+        updateTooltip();
+    }
+    return QWidget::event(event);
 }

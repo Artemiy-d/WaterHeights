@@ -18,6 +18,8 @@ public:
 
 protected:
 
+    bool event(QEvent *event) override;
+
     void resizeEvent(QResizeEvent *event) override;
 
     void paintEvent(QPaintEvent *event) override;
@@ -32,7 +34,7 @@ private:
 
     void updateImage();
 
-    void updateTooltip(const QPoint& pos);
+    void updateTooltip();
 
     void updateShortcuts();
 
