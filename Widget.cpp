@@ -32,6 +32,12 @@ Widget::Widget(QWidget *parent)
     redoShortcut = new QShortcut(QKeySequence(Qt::Key_U + Qt::CTRL), this);
     connect(redoShortcut, &QShortcut::activated, std::bind(&MapChanges::redo, &mapChanges));
 
+    auto increaseWaterLevelShortcut = new QShortcut(QKeySequence(Qt::Key_Up), this);
+    connect(increaseWaterLevelShortcut, &QShortcut::activated, std::bind(&Widget::changeWaterLevel, this, 1));
+
+    auto decreaseWaterLevelShortcut = new QShortcut(QKeySequence(Qt::Key_Down), this);
+    connect(decreaseWaterLevelShortcut, &QShortcut::activated, std::bind(&Widget::changeWaterLevel, this, -1));
+
     updateShortcuts();
 }
 
@@ -56,7 +62,7 @@ void Widget::paintEvent(QPaintEvent *)
 
 void Widget::updateImage()
 {
-    waterHeights = calculateWater(*groundMap);
+    waterHeights = calculateWater(*groundMap, waterLevel);
 
     QColor blue = QColor(Qt::blue).lighter(120);
     QColor gray(Qt::gray);
@@ -136,6 +142,14 @@ void Widget::changeMap(int k, const QPoint& pos)
 void Widget::changeMap(int k)
 {
     changeMap(k, mapFromGlobal(QCursor::pos()));
+}
+
+void Widget::changeWaterLevel(int k)
+{
+    waterLevel += k;
+
+    updateImage();
+    updateTooltip();
 }
 
 void Widget::wheelEvent(QWheelEvent *event)

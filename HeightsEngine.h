@@ -142,12 +142,10 @@ public:
             prevSize = indices.size();
             for (; j < prevSize; ++j)
             {
-                forEachNearest(indices[j], [&](Index nearest)
+                const auto orig = indices[j];
+                forEachNearest(orig, [&](Index nearest)
                 {
-                    if (handler(indices[j], nearest))
-                    {
-                        indices.push_back(nearest);
-                    }
+                    handler(orig, nearest);
                 });
             }
         } while (prevSize != indices.size());
@@ -168,37 +166,59 @@ private:
 std::pair<Heights, Height> calculateWater(const Map& m, int waterLevel = 0)
 {
     Indices groundBorders;
+    Indices waterBorders;
 
     size_t prevGroundBordersCount = 0;
     std::vector<CellType> cells(m.getCellsCount());
     auto result = std::make_pair(Heights(m.getCellsCount()), 0);
 
-    m.forEachBorderIndex([&](Index index)
-    {
-        cells[index] = CellType::Ground;
-        groundBorders.push_back(index);
-    });
-
     auto setWaterCell = [&](Index index)
     {
+        assert(cells[index] == CellType::Unknown);
+        assert(m[index] < waterLevel);
+
         cells[index] = CellType::Water;
         result.first[index] = waterLevel - m[index];
         result.second += result.first[index];
     };
 
-
-    while (!groundBorders.empty())
+    auto setWaterOrGroundCell = [&](Index index)
     {
+        if (m[index] < waterLevel)
+        {
+            setWaterCell(index);
+            waterBorders.push_back(index);
+        }
+        else
+        {
+            cells[index] = CellType::Ground;
+            groundBorders.push_back(index);
+        }
+    };
+
+    m.forEachBorderIndex(setWaterOrGroundCell);
+
+    while (!groundBorders.empty() || !waterBorders.empty())
+    {
+        m.bfs(waterBorders, 0, [&](Index orig, Index index)
+        {
+            assert(cells[index] != CellType::Ground || m[orig] < m[index]);
+            if (cells[index] == CellType::Unknown)
+            {
+                setWaterOrGroundCell(index);
+            }
+        });
+
+        waterBorders.clear();
+
         m.bfs(groundBorders, prevGroundBordersCount, [&](const Index& orig, const Index& index)
         {
             assert(!(cells[index] == CellType::Water && m[index] > m[orig]));
             if (cells[index] == CellType::Unknown && m[index] >= m[orig])
             {
                 cells[index] = CellType::Ground;
-                return true;
+                groundBorders.push_back(index);
             }
-
-            return false;
         });
 
         waterLevel = std::numeric_limits<int>::max();
@@ -219,7 +239,6 @@ std::pair<Heights, Height> calculateWater(const Map& m, int waterLevel = 0)
 
         prevGroundBordersCount = groundBorders.size();
 
-        Indices waterIndices;
         for (auto groundBorderIndex : groundBorders)
         {
             if (m[groundBorderIndex] == waterLevel)
@@ -231,38 +250,15 @@ std::pair<Heights, Height> calculateWater(const Map& m, int waterLevel = 0)
                         assert(m[nearest] < waterLevel);
                         setWaterCell(nearest);
 
-                        waterIndices.push_back(nearest);
+                        waterBorders.push_back(nearest);
                     }
                 });
             }
         }
-
-        m.bfs(waterIndices, 0, [&](Index orig, Index index)
-        {
-            if (cells[index] == CellType::Unknown)
-            {
-                if (m[index] < waterLevel)
-                {
-                    setWaterCell(index);
-                    return true;
-                }
-                else
-                {
-                    cells[index] = CellType::Ground;
-                    groundBorders.push_back(index);
-                }
-            }
-            else if (cells[index] == CellType::Ground)
-            {
-                assert(m[orig] < m[index]);
-            }
-
-            return false;
-        });
     };
 
 
-    auto h = result.first;
+   /* auto h = result.first;
 
     for (size_t index = 0; index < h.size(); ++index)
     {
@@ -271,7 +267,9 @@ std::pair<Heights, Height> calculateWater(const Map& m, int waterLevel = 0)
         {
             int m1 = -1;
             int m2 = 100500;
+            int m3 = 100500;
             Indices indices = { index };
+            bool isBorder = false;
             m.bfs(indices, 0, [&](Index orig, Index ind)
             {
 
@@ -284,9 +282,17 @@ std::pair<Heights, Height> calculateWater(const Map& m, int waterLevel = 0)
                     }
 
                     m1 = h[ind] + m[ind];
+
+                    if (m.isBorder(ind))
+                    {
+                        isBorder = true;
+                        assert(m3 == 100500 || m3 == h[ind]);
+                        m3 = h[ind];
+                    }
+
                     h[ind] = -1;
 
-                    return true;
+                    indices.push_back(ind);
                 }
                 else if (h[ind] == 0)
                 {
@@ -297,14 +303,12 @@ std::pair<Heights, Height> calculateWater(const Map& m, int waterLevel = 0)
                     assert(m[ind] > m[orig]);
 
                 }
-
-                return false;
             }, true);
 
-            assert(m1 == m2);
+            assert(m3 != 100500 || m1 == m2);
         }
     }
-
+*/
     return result;
 }
 

@@ -44,6 +44,8 @@ private:
 
     void changeMap(int k);
 
+    void changeWaterLevel(int k);
+
 private:
 
     MapChanges mapChanges;
@@ -53,6 +55,7 @@ private:
     std::unique_ptr<Map> groundMap;
 
     int brushSize = 10;
+    int waterLevel = 0;
 
     QImage image;
 
