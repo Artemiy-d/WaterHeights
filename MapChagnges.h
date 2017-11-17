@@ -2,6 +2,7 @@
 
 #include <QPoint>
 #include <deque>
+#include <cassert>
 
 
 struct MapChangeData
@@ -31,7 +32,7 @@ public:
     void addChange(const MapChangeData& data)
     {
         changes.resize(position);
-        if (position > 100)
+        if (position >= 1000)
             changes.pop_front();
 
         changes.push_back(data);
@@ -40,12 +41,14 @@ public:
 
     void undo()
     {
+        assert(canUndo());
         const auto& data = changes[--position];
         changable.changeMap({-data.k, data.pos, data.brushSize});
     }
 
     void redo()
     {
+        assert(canRedo());
         changable.changeMap(changes[position++]);
     }
 

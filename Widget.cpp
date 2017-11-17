@@ -60,7 +60,7 @@ void Widget::updateImage()
 {
     waterHeights = calculateWater(*groundMap);
 
-    QColor blue(Qt::blue);
+    QColor blue = QColor(Qt::blue).lighter(120);
     QColor gray(Qt::gray);
 
     auto index = 0;
