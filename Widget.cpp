@@ -86,7 +86,14 @@ void Widget::mousePressEvent(QMouseEvent *event)
 
 void Widget::mouseMoveEvent(QMouseEvent *event)
 {
-    updateTooltip(event->pos());
+    if (event->buttons() == Qt::NoButton)
+    {
+        updateTooltip(event->pos());
+    }
+    else
+    {
+        changeMap(event->buttons().testFlag(Qt::LeftButton) ? 1 : -1, event->pos());
+    }
 }
 
 void Widget::updateTooltip(const QPoint& pos)
