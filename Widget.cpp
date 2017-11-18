@@ -9,6 +9,7 @@
 
 #include <math.h>
 #include <chrono>
+#include <unordered_map>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
@@ -66,19 +67,37 @@ void Widget::updateImage()
     waterHeights = calculateWater(*groundMap, waterLevel);
     const auto t1 = std::chrono::steady_clock::now();
 
-    QColor blue = QColor(Qt::blue).lighter(120);
-    QColor gray(Qt::gray);
+    class ColorCache
+    {
+    public:
+        ColorCache(const QColor& c) : color(c)
+        {}
+
+        QRgb operator () (int h)
+        {
+            auto found = cache.find(h);
+            return (found == cache.end() ? cache.emplace(h, color.darker(100 + h).rgb()).first : found)->second;
+        }
+    private:
+        QColor color;
+        std::unordered_map<int, QRgb> cache;
+    };
+
+    ColorCache waterColors(QColor(Qt::blue).lighter(120));
+    ColorCache groundColors(Qt::gray);
 
     auto index = 0;
+    const auto w = width();
     for (int i = 0; i < height(); ++i)
-        for (int j = 0; j < width(); ++j)
+    {
+        auto line = (QRgb*)image.scanLine(i);
+        for (int j = 0; j < w; ++j)
         {
-            const auto h = waterHeights.first[index] ? waterHeights.first[index] : (*groundMap)[index];
-            const auto& c = waterHeights.first[index] ? blue : gray;
-
-            image.setPixelColor(j, i, c.darker(100 + h));
+            line[j] = (waterHeights.first[index] ? waterColors : groundColors)
+                      (waterHeights.first[index] ? waterHeights.first[index] : (*groundMap)[index]);
             ++index;
         }
+    }
 
     const auto t2 = std::chrono::steady_clock::now();
 
