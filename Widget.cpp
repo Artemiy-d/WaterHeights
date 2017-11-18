@@ -6,10 +6,12 @@
 #include <QMouseEvent>
 #include <QShortcut>
 #include <QWheelEvent>
+#include <QTimer>
 
 #include <math.h>
 #include <chrono>
 #include <unordered_map>
+#include <random>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
@@ -39,6 +41,29 @@ Widget::Widget(QWidget *parent)
     auto decreaseWaterLevelShortcut = new QShortcut(QKeySequence(Qt::Key_Down), this);
     connect(decreaseWaterLevelShortcut, &QShortcut::activated, std::bind(&Widget::changeWaterLevel, this, -1));
 
+    auto timer = new QTimer(this);
+
+    auto randomChangeMap = [this](std::mt19937& gen)
+    {
+        using Distribution = std::uniform_int_distribution<>;
+        changeMap(1, QPoint(Distribution(0, width() - 1)(gen), Distribution(0, height() - 1)(gen)));
+    };
+
+    connect(timer, &QTimer::timeout, std::bind(randomChangeMap, std::mt19937(time(0))));
+
+    auto timerShortcut = new QShortcut(QKeySequence(Qt::Key_T), this);
+    connect(timerShortcut, &QShortcut::activated, [=]()
+    {
+        if (timer->isActive())
+        {
+            timer->stop();
+        }
+        else
+        {
+            timer->start(0);
+        }
+    });
+
     updateShortcuts();
 }
 
@@ -56,9 +81,7 @@ void Widget::resizeEvent(QResizeEvent *)
 
 void Widget::paintEvent(QPaintEvent *)
 {
-    QPainter p(this);
-
-    p.drawImage(0, 0, image);
+    QPainter(this).drawImage(0, 0, image);
 }
 
 void Widget::updateImage()
@@ -142,12 +165,15 @@ void Widget::updateShortcuts()
 
 void Widget::changeMap(const MapChangeData& data)
 {
-    for (int x = std::max(0, data.pos.x() - data.brushSize); x <= std::min(width() - 1, data.pos.x() + data.brushSize); ++x)
-        for (int y = std::max(0, data.pos.y() - data.brushSize); y <= std::min(height() - 1, data.pos.y() + data.brushSize); ++y)
+    const auto rangeX = std::make_pair(std::max(0, data.pos.x() - data.brushSize), std::min(width() - 1, data.pos.x() + data.brushSize));
+    const auto rangeY = std::make_pair(std::max(0, data.pos.y() - data.brushSize), std::min(height() - 1, data.pos.y() + data.brushSize));
+
+    for (int x = rangeX.first; x <= rangeX.second; ++x)
+        for (int y = rangeY.first; y <= rangeY.second; ++y)
         {
             auto r = static_cast<int>(sqrt((x - data.pos.x()) * (x - data.pos.x()) + (y - data.pos.y()) * (y - data.pos.y())));
 
-            if (r <= 10)
+            if (r <= data.brushSize)
             {
                 (*groundMap)[y * width() + x] += data.k * (data.brushSize + 2 - r) / 2;
             }
