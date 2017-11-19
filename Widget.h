@@ -38,9 +38,11 @@ private:
 
     void updateShortcuts();
 
+    void changeMap(const MapChangeData& data, bool updateUI, bool addChangeAction);
+
     void changeMap(const MapChangeData& data) override;
 
-    void changeMap(int k, const QPoint& pos);
+    void changeMap(int k, const QPoint& pos, bool updateUI = true);
 
     void changeMap(int k);
 
@@ -50,7 +52,7 @@ private:
 
     MapChanges mapChanges;
 
-    std::pair<std::vector<int>, int> waterHeights;
+    std::vector<int> waterHeights;
 
     std::unique_ptr<Map> groundMap;
 

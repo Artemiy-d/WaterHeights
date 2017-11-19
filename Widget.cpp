@@ -43,13 +43,17 @@ Widget::Widget(QWidget *parent)
 
     auto timer = new QTimer(this);
 
-    auto randomChangeMap = [this](std::mt19937& gen)
+    auto randomChangeMap = [this](size_t count, std::mt19937& gen)
     {
-        using Distribution = std::uniform_int_distribution<>;
-        changeMap(1, QPoint(Distribution(0, width() - 1)(gen), Distribution(0, height() - 1)(gen)));
+        while (count--)
+        {
+            using Distribution = std::uniform_int_distribution<>;
+            const MapChangeData data = {1, QPoint(Distribution(0, width() - 1)(gen), Distribution(0, height() - 1)(gen)), Distribution(4, 14)(gen)};
+            changeMap(data, count == 0, true);
+        }
     };
 
-    connect(timer, &QTimer::timeout, std::bind(randomChangeMap, std::mt19937(time(0))));
+    connect(timer, &QTimer::timeout, std::bind(randomChangeMap, 1, std::mt19937(time(0))));
 
     auto timerShortcut = new QShortcut(QKeySequence(Qt::Key_T), this);
     connect(timerShortcut, &QShortcut::activated, [=]()
@@ -63,6 +67,9 @@ Widget::Widget(QWidget *parent)
             timer->start(0);
         }
     });
+
+    auto changeMapShortcut = new QShortcut(QKeySequence(Qt::Key_A), this);
+    connect(changeMapShortcut, &QShortcut::activated, std::bind(randomChangeMap, 10000, std::mt19937(0)));
 
     updateShortcuts();
 }
@@ -87,8 +94,10 @@ void Widget::paintEvent(QPaintEvent *)
 void Widget::updateImage()
 {
     const auto t0 = std::chrono::steady_clock::now();
-    waterHeights = calculateWater(*groundMap, waterLevel);
+    auto waterResult = calculateWater2(*groundMap, waterLevel);
+    waterHeights = std::move(waterResult.heights);
     const auto t1 = std::chrono::steady_clock::now();
+
 
     class ColorCache
     {
@@ -116,17 +125,19 @@ void Widget::updateImage()
         auto line = (QRgb*)image.scanLine(i);
         for (int j = 0; j < w; ++j)
         {
-            line[j] = (waterHeights.first[index] ? waterColors : groundColors)
-                      (waterHeights.first[index] ? waterHeights.first[index] : (*groundMap)[index]);
+            line[j] = (waterHeights[index] ? waterColors : groundColors)
+                      (waterHeights[index] ? waterHeights[index] : (*groundMap)[index]);
             ++index;
         }
     }
 
     const auto t2 = std::chrono::steady_clock::now();
 
-    setWindowTitle(QString("Water: %1; CalcTime: %2; ImageTime: %3;").arg(QString::number(waterHeights.second),
-                                                                          QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()),
-                                                                          QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count())));
+    setWindowTitle(QString("Volume: %1; Square: %2; CalcTime: %3; ImageTime: %4;").arg(
+                       QString::number(waterResult.volume),
+                       QString::number(float(waterResult.square) / waterHeights.size()),
+                       QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()),
+                       QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count())));
 
     repaint();
 }
@@ -149,9 +160,9 @@ void Widget::updateTooltip()
     {
         QString text = "Ground: " + QString::number((*groundMap)[index]);
 
-        if (waterHeights.first[index])
+        if (waterHeights[index])
         {
-            text += "\nWater: " + QString::number(waterHeights.first[index]);
+            text += "\nWater: " + QString::number(waterHeights[index]);
         }
         setToolTip(text);
     }
@@ -163,7 +174,7 @@ void Widget::updateShortcuts()
     redoShortcut->setEnabled(mapChanges.canRedo());
 }
 
-void Widget::changeMap(const MapChangeData& data)
+void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeAction)
 {
     const auto rangeX = std::make_pair(std::max(0, data.pos.x() - data.brushSize), std::min(width() - 1, data.pos.x() + data.brushSize));
     const auto rangeY = std::make_pair(std::max(0, data.pos.y() - data.brushSize), std::min(height() - 1, data.pos.y() + data.brushSize));
@@ -179,15 +190,26 @@ void Widget::changeMap(const MapChangeData& data)
             }
         }
 
-    updateImage();
-    updateShortcuts();
+    if (updateUI)
+    {
+        updateImage();
+        updateShortcuts();
+    }
+
+    if (addChangeAction)
+    {
+        mapChanges.addChange(data);
+    }
 }
 
-void Widget::changeMap(int k, const QPoint& pos)
+void Widget::changeMap(const MapChangeData& data)
 {
-    MapChangeData data = {k, pos, brushSize};
-    changeMap(data);
-    mapChanges.addChange(data);
+    changeMap(data, true, false);
+}
+
+void Widget::changeMap(int k, const QPoint& pos, bool updateUI)
+{
+    changeMap({k, pos, brushSize}, updateUI, true);
 }
 
 void Widget::changeMap(int k)
