@@ -76,6 +76,9 @@ Widget::Widget(QWidget *parent)
     auto wrongestCaseShortcut = new QShortcut(QKeySequence(Qt::Key_W), this);
     connect(wrongestCaseShortcut, &QShortcut::activated, this, &Widget::setWorstCase);
 
+    auto hardCaseShortcut = new QShortcut(QKeySequence(Qt::Key_H), this);
+    connect(hardCaseShortcut, &QShortcut::activated, this, &Widget::setHardCase);
+
     auto randomCaseShortcut = new QShortcut(QKeySequence(Qt::Key_R), this);
     connect(randomCaseShortcut, &QShortcut::activated, this, &Widget::setRandomCase);
 
@@ -91,7 +94,7 @@ void Widget::resizeEvent(QResizeEvent *)
     groundMap.reset(new Map({static_cast<unsigned int>(width()), static_cast<unsigned int>(height())}));
     image = QImage(size(), QImage::Format_RGB32);
 
-    updateImage();
+    onMapReseted();
 }
 
 void Widget::paintEvent(QPaintEvent *)
@@ -100,7 +103,7 @@ void Widget::paintEvent(QPaintEvent *)
 }
 
 void Widget::updateImage()
-{
+{   
     const auto t0 = std::chrono::steady_clock::now();
     auto waterResult = calculateWater3(*groundMap, waterLevel);
     waterHeights = std::move(waterResult.heights);
@@ -189,6 +192,8 @@ void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeA
     const auto rangeX = std::make_pair(std::max(0, data.pos.x() - data.brushSize), std::min(width() - 1, data.pos.x() + data.brushSize));
     const auto rangeY = std::make_pair(std::max(0, data.pos.y() - data.brushSize), std::min(height() - 1, data.pos.y() + data.brushSize));
 
+    auto w = width();
+
     for (int x = rangeX.first; x <= rangeX.second; ++x)
         for (int y = rangeY.first; y <= rangeY.second; ++y)
         {
@@ -196,7 +201,7 @@ void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeA
 
             if (r <= data.brushSize)
             {
-                (*groundMap)[y * width() + x] += data.k * (data.brushSize + 2 - r) / 2;
+                (*groundMap)[y * w + x] += data.k * (data.brushSize + 2 - r) / 2;
             }
         }
 
@@ -213,7 +218,7 @@ void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeA
     }
 }
 
-void Widget::setWorstCase()
+void Widget::setHardCase()
 {
     auto w = width();
     auto h = height();
@@ -221,14 +226,14 @@ void Widget::setWorstCase()
     int groundLevel = 0;
 
     for (int y = 0; y < h; y += 2)
-        for (int x = 0; x < w; x += 2)
-        {
-            auto base = w * y + x;
-            (*groundMap)[base + 1 + w] = groundLevel++;
-            (*groundMap)[base] = groundLevel;
-            (*groundMap)[base + 1] = groundLevel;
-            (*groundMap)[base + w] = groundLevel;
-        }
+       for (int x = 0; x < w; x += 2)
+       {
+           auto base = w * y + x;
+           (*groundMap)[base + 1 + w] = groundLevel++;
+           (*groundMap)[base] = groundLevel;
+           (*groundMap)[base + 1] = groundLevel;
+           (*groundMap)[base + w] = groundLevel;
+       }
 
     if (w & 1)
     {
@@ -239,12 +244,29 @@ void Widget::setWorstCase()
     if (h & 1)
     {
         for (int x = 0; x < w; ++x)
-            (*groundMap)[w * (h - 1) + x] = groundLevel;
+           (*groundMap)[w * (h - 1) + x] = groundLevel;
     }
 
-    updateImage();
-    mapChanges.clear();
-    updateShortcuts();
+    onMapReseted();
+}
+
+void Widget::setWorstCase()
+{
+    auto w = width();
+    auto h = height();
+
+    int groundLevel = 0;
+
+    const int delta = w / 2 + 2;
+
+    size_t index = 0;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+        {
+            (*groundMap)[index++] = (x + y) & 1 ? ++groundLevel : groundLevel - delta;
+        }
+
+    onMapReseted();
 }
 
 void Widget::setRandomCase()
@@ -252,9 +274,7 @@ void Widget::setRandomCase()
     for (size_t i = 0; i < groundMap->getCellsCount(); ++i)
         (*groundMap)[i] = Distribution(0, 100)(randGen);
 
-    updateImage();
-    mapChanges.clear();
-    updateShortcuts();
+    onMapReseted();
 }
 
 void Widget::changeMap(const MapChangeData& data)
@@ -292,4 +312,11 @@ bool Widget::event(QEvent *event)
         updateTooltip();
     }
     return QWidget::event(event);
+}
+
+void Widget::onMapReseted()
+{
+    updateImage();
+    mapChanges.clear();
+    updateShortcuts();
 }

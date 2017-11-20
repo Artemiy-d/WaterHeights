@@ -427,58 +427,6 @@ HeightsResult calculateWater2(const Map& m, int waterLevel = 0)
 
     assert(heightToIndices.empty());
 
-
-   /* auto h = result.first;
-
-    for (size_t index = 0; index < h.size(); ++index)
-    {
-        assert(cells[index] == CellType::Ground || cells[index] == CellType::Water);
-        if (h[index] > 0)
-        {
-            int m1 = -1;
-            int m2 = 100500;
-            int m3 = 100500;
-            Indices indices = { index };
-            bool isBorder = false;
-            m.bfs(indices, 0, [&](Index orig, Index ind)
-            {
-
-                if (h[ind] > 0)
-                {
-                    assert(cells[ind] == CellType::Water);
-                    if (m1 > 0)
-                    {
-                        assert(m1 == h[ind] + m[ind]);
-                    }
-
-                    m1 = h[ind] + m[ind];
-
-                    if (m.isBorder(ind))
-                    {
-                        isBorder = true;
-                        assert(m3 == 100500 || m3 == h[ind]);
-                        m3 = h[ind];
-                    }
-
-                    h[ind] = -1;
-
-                    indices.push_back(ind);
-                }
-                else if (h[ind] == 0)
-                {
-                    assert(cells[ind] == CellType::Ground);
-                    assert(cells[orig] == CellType::Water);
-
-                    m2 = std::min(m2, m[ind]);
-                    assert(m[ind] > m[orig]);
-
-                }
-            }, true);
-
-            assert(m3 != 100500 || m1 == m2);
-        }
-    }
-*/
     return result;
 }
 
@@ -599,58 +547,6 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
 
     assert(heightToIndices.empty());
 
-
-   /* auto h = result.first;
-
-    for (size_t index = 0; index < h.size(); ++index)
-    {
-        assert(cells[index] == CellType::Ground || cells[index] == CellType::Water);
-        if (h[index] > 0)
-        {
-            int m1 = -1;
-            int m2 = 100500;
-            int m3 = 100500;
-            Indices indices = { index };
-            bool isBorder = false;
-            m.bfs(indices, 0, [&](Index orig, Index ind)
-            {
-
-                if (h[ind] > 0)
-                {
-                    assert(cells[ind] == CellType::Water);
-                    if (m1 > 0)
-                    {
-                        assert(m1 == h[ind] + m[ind]);
-                    }
-
-                    m1 = h[ind] + m[ind];
-
-                    if (m.isBorder(ind))
-                    {
-                        isBorder = true;
-                        assert(m3 == 100500 || m3 == h[ind]);
-                        m3 = h[ind];
-                    }
-
-                    h[ind] = -1;
-
-                    indices.push_back(ind);
-                }
-                else if (h[ind] == 0)
-                {
-                    assert(cells[ind] == CellType::Ground);
-                    assert(cells[orig] == CellType::Water);
-
-                    m2 = std::min(m2, m[ind]);
-                    assert(m[ind] > m[orig]);
-
-                }
-            }, true);
-
-            assert(m3 != 100500 || m1 == m2);
-        }
-    }
-*/
     return result;
 }
 

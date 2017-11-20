@@ -52,7 +52,11 @@ private:
 
     void setWorstCase();
 
+    void setHardCase();
+
     void setRandomCase();
+
+    void onMapReseted();
 
 private:
 
