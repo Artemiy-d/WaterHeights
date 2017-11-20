@@ -11,10 +11,13 @@
 #include <math.h>
 #include <chrono>
 #include <unordered_map>
-#include <random>
+
+
+using Distribution = std::uniform_int_distribution<>;
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
+      randGen(time(0)),
       mapChanges(*this)
 {
     auto addShortcut = new QShortcut(QKeySequence(Qt::Key_1), this);
@@ -43,17 +46,16 @@ Widget::Widget(QWidget *parent)
 
     auto timer = new QTimer(this);
 
-    auto randomChangeMap = [this](size_t count, std::mt19937& gen)
+    auto randomChangeMap = [this](size_t count)
     {
         while (count--)
         {
-            using Distribution = std::uniform_int_distribution<>;
-            const MapChangeData data = {1, QPoint(Distribution(0, width() - 1)(gen), Distribution(0, height() - 1)(gen)), Distribution(4, 14)(gen)};
+            const MapChangeData data = {1, QPoint(Distribution(0, width() - 1)(randGen), Distribution(0, height() - 1)(randGen)), Distribution(4, 14)(randGen)};
             changeMap(data, count == 0, true);
         }
     };
 
-    connect(timer, &QTimer::timeout, std::bind(randomChangeMap, 1, std::mt19937(time(0))));
+    connect(timer, &QTimer::timeout, std::bind(randomChangeMap, 1));
 
     auto timerShortcut = new QShortcut(QKeySequence(Qt::Key_T), this);
     connect(timerShortcut, &QShortcut::activated, [=]()
@@ -69,7 +71,13 @@ Widget::Widget(QWidget *parent)
     });
 
     auto changeMapShortcut = new QShortcut(QKeySequence(Qt::Key_A), this);
-    connect(changeMapShortcut, &QShortcut::activated, std::bind(randomChangeMap, 10000, std::mt19937(0)));
+    connect(changeMapShortcut, &QShortcut::activated, std::bind(randomChangeMap, 10000));
+
+    auto wrongestCaseShortcut = new QShortcut(QKeySequence(Qt::Key_W), this);
+    connect(wrongestCaseShortcut, &QShortcut::activated, this, &Widget::setWorstCase);
+
+    auto randomCaseShortcut = new QShortcut(QKeySequence(Qt::Key_R), this);
+    connect(randomCaseShortcut, &QShortcut::activated, this, &Widget::setRandomCase);
 
     updateShortcuts();
 }
@@ -94,7 +102,7 @@ void Widget::paintEvent(QPaintEvent *)
 void Widget::updateImage()
 {
     const auto t0 = std::chrono::steady_clock::now();
-    auto waterResult = calculateWater2(*groundMap, waterLevel);
+    auto waterResult = calculateWater3(*groundMap, waterLevel);
     waterHeights = std::move(waterResult.heights);
     const auto t1 = std::chrono::steady_clock::now();
 
@@ -132,6 +140,8 @@ void Widget::updateImage()
     }
 
     const auto t2 = std::chrono::steady_clock::now();
+
+    setToolTip({});
 
     setWindowTitle(QString("Volume: %1; Square: %2; CalcTime: %3; ImageTime: %4;").arg(
                        QString::number(waterResult.volume),
@@ -190,16 +200,61 @@ void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeA
             }
         }
 
-    if (updateUI)
-    {
-        updateImage();
-        updateShortcuts();
-    }
 
     if (addChangeAction)
     {
         mapChanges.addChange(data);
     }
+
+    if (updateUI)
+    {
+        updateImage();
+        updateShortcuts();
+    }
+}
+
+void Widget::setWorstCase()
+{
+    auto w = width();
+    auto h = height();
+
+    int groundLevel = 0;
+
+    for (int y = 0; y < h; y += 2)
+        for (int x = 0; x < w; x += 2)
+        {
+            auto base = w * y + x;
+            (*groundMap)[base + 1 + w] = groundLevel++;
+            (*groundMap)[base] = groundLevel;
+            (*groundMap)[base + 1] = groundLevel;
+            (*groundMap)[base + w] = groundLevel;
+        }
+
+    if (w & 1)
+    {
+        for (int y = 0; y < h; ++y)
+            (*groundMap)[w * (y + 1) - 1] = groundLevel;
+    }
+
+    if (h & 1)
+    {
+        for (int x = 0; x < w; ++x)
+            (*groundMap)[w * (h - 1) + x] = groundLevel;
+    }
+
+    updateImage();
+    mapChanges.clear();
+    updateShortcuts();
+}
+
+void Widget::setRandomCase()
+{
+    for (size_t i = 0; i < groundMap->getCellsCount(); ++i)
+        (*groundMap)[i] = Distribution(0, 100)(randGen);
+
+    updateImage();
+    mapChanges.clear();
+    updateShortcuts();
 }
 
 void Widget::changeMap(const MapChangeData& data)

@@ -62,6 +62,12 @@ public:
         return position < changes.size();
     }
 
+    void clear()
+    {
+        changes.clear();
+        position = 0;
+    }
+
 private:
 
     MapChangable& changable;

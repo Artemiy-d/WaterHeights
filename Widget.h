@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QWidget>
+#include <random>
+
 
 #include "MapChagnges.h"
 
@@ -48,7 +50,13 @@ private:
 
     void changeWaterLevel(int k);
 
+    void setWorstCase();
+
+    void setRandomCase();
+
 private:
+
+    std::mt19937 randGen;
 
     MapChanges mapChanges;
 

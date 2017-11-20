@@ -482,3 +482,175 @@ HeightsResult calculateWater2(const Map& m, int waterLevel = 0)
     return result;
 }
 
+HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
+{
+    Indices groundBorders;
+    Indices waterBorders;
+
+    size_t prevGroundBordersCount = 0;
+    std::vector<CellType> cells(m.getCellsCount());
+    HeightsResult result(m.getCellsCount());
+
+    auto isUnknowCell = [&](Index nearest)
+    {
+        return cells[nearest] == CellType::Unknown;
+    };
+
+    auto setWaterCell = [&](Index index)
+    {
+        assert(cells[index] == CellType::Unknown);
+        assert(m[index] < waterLevel);
+
+        cells[index] = CellType::Water;
+        result.heights[index] = waterLevel - m[index];
+        result.volume += result.heights[index];
+        ++result.square;
+
+        waterBorders.push_back(index);
+    };
+
+    auto setGroundCell = [&](Index index)
+    {
+        cells[index] = CellType::Ground;
+        groundBorders.push_back(index);
+    };
+
+    auto setWaterOrGroundCell = [&](Index index)
+    {
+        if (m[index] < waterLevel)
+            setWaterCell(index);
+        else
+            setGroundCell(index);
+    };
+
+    m.forEachBorderIndex(setWaterOrGroundCell);
+
+    std::multimap<Height, std::pair<size_t, size_t>> heightToIndices;
+
+    while (prevGroundBordersCount < groundBorders.size() || !waterBorders.empty())
+    {
+        m.bfs(waterBorders, 0, [&](Index orig, Index index)
+        {
+            assert(cells[index] != CellType::Ground || m[orig] < m[index]);
+            if (cells[index] == CellType::Unknown)
+            {
+                setWaterOrGroundCell(index);
+            }
+        });
+
+        waterBorders.clear();
+
+        m.bfs(groundBorders, prevGroundBordersCount, [&](const Index& orig, const Index& index)
+        {
+            assert(!(cells[index] == CellType::Water && m[index] > m[orig]));
+            if (cells[index] == CellType::Unknown && m[index] >= m[orig])
+            {
+                setGroundCell(index);
+            }
+        });
+
+
+        groundBorders.erase(std::remove_if(groundBorders.begin() + prevGroundBordersCount, groundBorders.end(), [&](Index index)
+        {
+            return !m.findNearest(index, isUnknowCell);
+        }), groundBorders.end());
+
+
+        if (prevGroundBordersCount < groundBorders.size())
+        {
+            std::sort(groundBorders.begin() + prevGroundBordersCount, groundBorders.end(), [&](Index a, Index b)
+            {
+                return m[a] < m[b];
+            });
+
+            heightToIndices.emplace(m[groundBorders[prevGroundBordersCount]], std::make_pair(prevGroundBordersCount, groundBorders.size()));
+        }
+
+        while (!heightToIndices.empty() && waterBorders.empty())
+        {
+            auto it = heightToIndices.begin();
+            waterLevel = it->first;
+            do
+            {
+                auto range = std::move(it->second);
+                it = heightToIndices.erase(it);
+
+                for (; range.first < range.second && m[groundBorders[range.first]] == waterLevel; ++range.first)
+                {
+                    m.forEachNearest(groundBorders[range.first], [&](Index nearest)
+                    {
+                        if (cells[nearest] == CellType::Unknown)
+                        {
+                            assert(m[nearest] < waterLevel);
+                            setWaterCell(nearest);
+                        }
+                    });
+                }
+
+                if (range.first < range.second)
+                {
+                    heightToIndices.emplace(m[groundBorders[range.first]], range);
+                }
+            } while (it != heightToIndices.end() && it->first == waterLevel);
+        }
+
+        prevGroundBordersCount = groundBorders.size();
+    };
+
+    assert(heightToIndices.empty());
+
+
+   /* auto h = result.first;
+
+    for (size_t index = 0; index < h.size(); ++index)
+    {
+        assert(cells[index] == CellType::Ground || cells[index] == CellType::Water);
+        if (h[index] > 0)
+        {
+            int m1 = -1;
+            int m2 = 100500;
+            int m3 = 100500;
+            Indices indices = { index };
+            bool isBorder = false;
+            m.bfs(indices, 0, [&](Index orig, Index ind)
+            {
+
+                if (h[ind] > 0)
+                {
+                    assert(cells[ind] == CellType::Water);
+                    if (m1 > 0)
+                    {
+                        assert(m1 == h[ind] + m[ind]);
+                    }
+
+                    m1 = h[ind] + m[ind];
+
+                    if (m.isBorder(ind))
+                    {
+                        isBorder = true;
+                        assert(m3 == 100500 || m3 == h[ind]);
+                        m3 = h[ind];
+                    }
+
+                    h[ind] = -1;
+
+                    indices.push_back(ind);
+                }
+                else if (h[ind] == 0)
+                {
+                    assert(cells[ind] == CellType::Ground);
+                    assert(cells[orig] == CellType::Water);
+
+                    m2 = std::min(m2, m[ind]);
+                    assert(m[ind] > m[orig]);
+
+                }
+            }, true);
+
+            assert(m3 != 100500 || m1 == m2);
+        }
+    }
+*/
+    return result;
+}
+
