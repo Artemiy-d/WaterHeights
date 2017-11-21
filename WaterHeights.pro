@@ -29,3 +29,7 @@ SOURCES += main.cpp\
 HEADERS  += Widget.h \
     HeightsEngine.h \
     MapChagnges.h
+
+CONFIG(release, debug|release) {
+    DEFINES += NDEBUG
+}

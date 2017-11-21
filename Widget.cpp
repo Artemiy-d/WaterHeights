@@ -17,7 +17,7 @@ using Distribution = std::uniform_int_distribution<>;
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
-      randGen(time(0)),
+      randGen(0),
       mapChanges(*this)
 {
     auto addShortcut = new QShortcut(QKeySequence(Qt::Key_1), this);

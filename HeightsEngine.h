@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cassert>
 
+
 using Index = size_t;
 using Indices = std::vector<Index>;
 using Height = int;
@@ -125,8 +126,8 @@ public:
         }
     }
 
-    template <typename Handler>
-    void bfs(Indices& indices, size_t prevSize, Handler&& handler, bool handleBase = false) const
+    template <typename IndicesArray, typename Handler>
+    void bfs(IndicesArray& indices, size_t prevSize, Handler&& handler, bool handleBase = false) const
     {
         if (handleBase)
         {
@@ -266,6 +267,8 @@ HeightsResult calculateWater(const Map& m, int waterLevel = 0)
             }
         }
     };
+
+
 
 
    /* auto h = result.first;
@@ -439,6 +442,8 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
     std::vector<CellType> cells(m.getCellsCount());
     HeightsResult result(m.getCellsCount());
 
+    std::multimap<Height, std::pair<size_t, size_t>> heightsToRanges;
+
     auto isUnknowCell = [&](Index nearest)
     {
         return cells[nearest] == CellType::Unknown;
@@ -473,8 +478,6 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
 
     m.forEachBorderIndex(setWaterOrGroundCell);
 
-    std::multimap<Height, std::pair<size_t, size_t>> heightToIndices;
-
     while (prevGroundBordersCount < groundBorders.size() || !waterBorders.empty())
     {
         m.bfs(waterBorders, 0, [&](Index orig, Index index)
@@ -497,12 +500,10 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
             }
         });
 
-
         groundBorders.erase(std::remove_if(groundBorders.begin() + prevGroundBordersCount, groundBorders.end(), [&](Index index)
         {
             return !m.findNearest(index, isUnknowCell);
         }), groundBorders.end());
-
 
         if (prevGroundBordersCount < groundBorders.size())
         {
@@ -511,17 +512,17 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
                 return m[a] < m[b];
             });
 
-            heightToIndices.emplace(m[groundBorders[prevGroundBordersCount]], std::make_pair(prevGroundBordersCount, groundBorders.size()));
+            heightsToRanges.emplace(m[groundBorders[prevGroundBordersCount]], std::make_pair(prevGroundBordersCount, groundBorders.size()));
         }
 
-        while (!heightToIndices.empty() && waterBorders.empty())
+        while (!heightsToRanges.empty() && waterBorders.empty())
         {
-            auto it = heightToIndices.begin();
+            auto it = heightsToRanges.begin();
             waterLevel = it->first;
             do
             {
-                auto range = std::move(it->second);
-                it = heightToIndices.erase(it);
+                auto range = it->second;
+                it = heightsToRanges.erase(it);
 
                 for (; range.first < range.second && m[groundBorders[range.first]] == waterLevel; ++range.first)
                 {
@@ -535,17 +536,22 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
                     });
                 }
 
+
                 if (range.first < range.second)
                 {
-                    heightToIndices.emplace(m[groundBorders[range.first]], range);
+                    assert(m[groundBorders[range.first]] > waterLevel);
+
+                    heightsToRanges.emplace(m[groundBorders[range.first]], range);
+                    it = heightsToRanges.begin();
                 }
-            } while (it != heightToIndices.end() && it->first == waterLevel);
+
+            } while (!heightsToRanges.empty() && it->first == waterLevel);
         }
 
         prevGroundBordersCount = groundBorders.size();
     };
 
-    assert(heightToIndices.empty());
+    assert(heightsToRanges.empty());
 
     return result;
 }
