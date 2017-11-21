@@ -117,12 +117,71 @@ public:
     }
 
     template <typename Handler>
+    void forEachInRange(std::vector<size_t>& body, const std::vector<std::pair<size_t, size_t>>& ranges, Handler&& handler) const
+    {
+        Index index = 0;
+        for (size_t i = 0; i < ranges.size(); ++i)
+        {
+            assert(ranges[i].first <= ranges[i].second);
+            body[i] = ranges[i].first;
+            index += dimensions[i] * body[i];
+        }
+
+        for (size_t i = 0; i < ranges.size(); )
+        {
+            handler(index);
+
+            for (i = 0; i < ranges.size(); )
+            {
+                if (body[i] == ranges[i].second)
+                {
+                    body[i] = ranges[i].first;
+                    index -= (ranges[i].second - body[i]) * dimensions[i];
+                    ++i;
+                }
+                else
+                {
+                    ++body[i];
+                    index += dimensions[i];
+                    break;
+                }
+            }
+        }
+    }
+
+    template <typename Handler>
     void forEachBorderIndex(Handler&& handler) const
     {
-        for (size_t i = 1; i < heights.size(); ++i)
+        if (std::any_of(sizes.begin(), sizes.end(), std::bind(std::less<size_t>(), std::placeholders::_1, size_t(3))))
         {
-            if (isBorder(i))
+            for (size_t i = 1; i < heights.size(); ++i)
                 handler(i);
+        }
+        else
+        {
+            std::vector<size_t> body(dimensions.size());
+            std::vector<std::pair<size_t, size_t>> ranges;
+            ranges.reserve(body.size());
+
+            for (auto s : sizes)
+            {
+                ranges.emplace_back(size_t(1), s - 2);
+            }
+
+            for (size_t i = 0; i < sizes.size(); ++i)
+            {
+                const auto last = sizes[i] - 1;
+                if (last)
+                {
+                    ranges[i].first = ranges[i].second = last;
+                    forEachInRange(body, ranges, handler);
+                }
+
+                ranges[i].first = ranges[i].second = 0;
+                forEachInRange(body, ranges, handler);
+
+                ranges[i].second = last;
+            }
         }
     }
 
@@ -535,7 +594,6 @@ HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
                         }
                     });
                 }
-
 
                 if (range.first < range.second)
                 {
