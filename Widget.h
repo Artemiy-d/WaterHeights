@@ -6,13 +6,13 @@
 
 #include "MapChagnges.h"
 
+template <typename ValueType>
+using Array2 = std::array<ValueType, 2>;
+
 template <template <class...> class Container>
 class Map;
 
-template <typename ValueType>
-using Container = std::array<ValueType, 2>;
-
-using UIMap = Map<Container>;
+using UIMap = Map<Array2>;
 
 class QShortcut;
 
