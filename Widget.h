@@ -6,7 +6,14 @@
 
 #include "MapChagnges.h"
 
+template <template <class...> class Container>
 class Map;
+
+template <typename ValueType>
+using Container = std::array<ValueType, 2>;
+
+using UIMap = Map<Container>;
+
 class QShortcut;
 
 class Widget : public QWidget, private MapChangable
@@ -66,7 +73,7 @@ private:
 
     std::vector<int> waterHeights;
 
-    std::unique_ptr<Map> groundMap;
+    std::unique_ptr<UIMap> groundMap;
 
     int brushSize = 10;
     int waterLevel = 0;

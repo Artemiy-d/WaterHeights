@@ -20,13 +20,29 @@ enum class CellType
     Ground
 };
 
+template <typename Container, typename... Args>
+auto getDefaultContainer(Args&&... args) -> decltype(Container(args...))
+{
+    return Container(std::forward<Args>(args)...);
+}
+
+template <typename Container>
+Container getDefaultContainer(...)
+{
+    return {};
+}
+
+
+template <template <class...> class Container>
 class Map
 {
 public:
-    Map(std::vector<unsigned int> s, Heights h = {}) :
+    using Sizes = Container<unsigned int>;
+
+    Map(Sizes s, Heights h = {}) :
         heights(std::move(h)),
         sizes(std::move(s)),
-        dimensions(sizes.size())
+        dimensions(getDefaultContainer<Sizes>(sizes.size()))
     {
         if (!dimensions.empty())
         {
@@ -117,7 +133,7 @@ public:
     }
 
     template <typename Handler>
-    void forEachInRange(std::vector<size_t>& body, const std::vector<std::pair<size_t, size_t>>& ranges, Handler&& handler) const
+    void forEachInRange(Container<size_t>& body, const Container<std::pair<size_t, size_t>>& ranges, Handler&& handler) const
     {
         Index index = 0;
         for (size_t i = 0; i < ranges.size(); ++i)
@@ -159,13 +175,13 @@ public:
         }
         else
         {
-            std::vector<size_t> body(dimensions.size());
-            std::vector<std::pair<size_t, size_t>> ranges;
-            ranges.reserve(body.size());
+            auto body = getDefaultContainer<Container<size_t>>(dimensions.size());
+            auto ranges = getDefaultContainer<Container<std::pair<size_t, size_t>>>(dimensions.size());
 
-            for (auto s : sizes)
+            for (size_t i = 0; i < sizes.size(); ++i)
             {
-                ranges.emplace_back(size_t(1), s - 2);
+                ranges[i].first = 1;
+                ranges[i].second = sizes[i] - 2;
             }
 
             for (size_t i = 0; i < sizes.size(); ++i)
@@ -218,9 +234,11 @@ public:
 
 private:
 
+private:
+
     std::vector<int> heights;
-    std::vector<unsigned int> sizes;
-    std::vector<unsigned int> dimensions;
+    Sizes sizes;
+    Sizes dimensions;
 };
 
 
@@ -233,7 +251,8 @@ struct HeightsResult
     size_t square = 0;
 };
 
-HeightsResult calculateWater(const Map& m, int waterLevel = 0)
+template <typename HeightsMap>
+HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
 {
     Indices groundBorders;
     Indices waterBorders;
@@ -384,7 +403,8 @@ HeightsResult calculateWater(const Map& m, int waterLevel = 0)
     return result;
 }
 
-HeightsResult calculateWater2(const Map& m, int waterLevel = 0)
+template <typename HeightsMap>
+HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
 {
     Indices groundBorders;
     Indices waterBorders;
@@ -492,7 +512,8 @@ HeightsResult calculateWater2(const Map& m, int waterLevel = 0)
     return result;
 }
 
-HeightsResult calculateWater3(const Map& m, int waterLevel = 0)
+template <typename HeightsMap>
+HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
 {
     Indices groundBorders;
     Indices waterBorders;

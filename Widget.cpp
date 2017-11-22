@@ -91,7 +91,7 @@ Widget::~Widget()
 
 void Widget::resizeEvent(QResizeEvent *)
 {
-    groundMap.reset(new Map({static_cast<unsigned int>(width()), static_cast<unsigned int>(height())}));
+    groundMap.reset(new UIMap({static_cast<unsigned int>(width()), static_cast<unsigned int>(height())}));
     image = QImage(size(), QImage::Format_RGB32);
 
     onMapReseted();
