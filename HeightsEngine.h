@@ -17,7 +17,8 @@ enum class CellType
 {
     Unknown,
     Water,
-    Ground
+    Ground,
+    Invalid
 };
 
 template <typename Container, typename... Args>
@@ -39,31 +40,26 @@ class Map
 public:
     using Sizes = Container<unsigned int>;
 
-    Map(Sizes s, Heights h = {}) :
-        heights(std::move(h)),
+    Map(Sizes s) :
         sizes(std::move(s)),
         dimensions(getDefaultContainer<Sizes>(sizes.size()))
     {
         if (!dimensions.empty())
         {
             dimensions[0] = 1;
+            sizes[0] += 2;
 
             for (size_t i = 1; i < dimensions.size(); ++i)
             {
+                sizes[i] += 2;
                 dimensions[i] = dimensions[i - 1] * sizes[i - 1];
             }
         }
 
         const auto neededSize = !dimensions.empty() ? dimensions.back() * sizes.back() : 0u;
 
-        if (heights.empty())
-        {
-            heights.resize(neededSize);
-        }
-        else if (neededSize != heights.size())
-        {
-            throw std::logic_error("Bad input");
-        }
+
+        heights.resize(neededSize);
     }
 
     size_t getSubIndex(Index index, size_t number) const
@@ -71,20 +67,28 @@ public:
         return (index / getDim(number)) % sizes[number];
     }
 
-    Height operator [] (Index index) const
+    template <typename... Args>
+    Height getHeight (Args... args) const
     {
-        return heights[index];
+        return heights[getHeightIndex(args...)];
     }
 
-    Height& operator [] (Index index)
+    template <typename... Args>
+    Height& getHeight (Args... args)
     {
-        return heights[index];
+        return heights[getHeightIndex(args...)];
     }
 
     size_t getDim(size_t number) const
     {
         return dimensions[number];
     }
+
+    const Heights& getHeights() const
+    {
+        return heights;
+    }
+
 
     bool isBorder(const Index& index) const
     {
@@ -104,15 +108,17 @@ public:
     {
         for (size_t i = 0; i < sizes.size(); ++i)
         {
-            auto subIndex = getSubIndex(index, i);
-
-            if (subIndex)
+#ifndef NDEBUG
+            auto si = getSubIndex(index, i);
+            assert(si != 0 && si + 1 != sizes[i]);
+#endif
+           // if (subIndex)
             {
                 if (handler(index - dimensions[i]))
                     return true;
             }
 
-            if (subIndex + 1 < sizes[i])
+//            if (subIndex + 1 < sizes[i])
             {
                 if (handler(index + dimensions[i]))
                     return true;
@@ -125,11 +131,24 @@ public:
     template <typename Handler>
     void forEachNearest(Index index, Handler&& handler) const
     {
-        findNearest(index, [&](Index nearest)
+        for (size_t i = 0; i < sizes.size(); ++i)
         {
-            handler(nearest);
-            return false;
-        });
+#ifndef NDEBUG
+            auto si = getSubIndex(index, i);
+            assert(si != 0 && si + 1 != sizes[i]);
+#endif
+        //    auto subIndex = getSubIndex(index, i);
+
+           // if (subIndex)
+            {
+                handler(index - dimensions[i]);
+            }
+
+//            if (subIndex + 1 < sizes[i])
+            {
+                handler(index + dimensions[i]);
+            }
+        }
     }
 
     template <typename Handler>
@@ -166,34 +185,35 @@ public:
     }
 
     template <typename Handler>
-    void forEachBorderIndex(Handler&& handler) const
+    void forEachBorderIndex(Handler&& handler, size_t offset = 0) const
     {
-        if (std::any_of(sizes.begin(), sizes.end(), std::bind(std::less<size_t>(), std::placeholders::_1, size_t(3))))
+        auto body = getDefaultContainer<Container<size_t>>(sizes.size());
+        auto ranges = getDefaultContainer<Container<std::pair<size_t, size_t>>>(sizes.size());
+
+        if (std::any_of(sizes.begin(), sizes.end(), std::bind(std::less<size_t>(), std::placeholders::_1, size_t(3 + offset * 2))))
         {
-            for (size_t i = 1; i < heights.size(); ++i)
-                handler(i);
+            for (size_t i = 0; i < sizes.size(); ++i)
+            {
+                ranges[i].first = offset;
+                ranges[i].second = sizes[i] - offset - 1;
+            }
+
+            forEachInRange(body, ranges, std::forward<Handler>(handler));
         }
         else
         {
-            auto body = getDefaultContainer<Container<size_t>>(dimensions.size());
-            auto ranges = getDefaultContainer<Container<std::pair<size_t, size_t>>>(dimensions.size());
-
             for (size_t i = 0; i < sizes.size(); ++i)
             {
-                ranges[i].first = 1;
-                ranges[i].second = sizes[i] - 2;
+                ranges[i].first = offset + 1;
+                ranges[i].second = sizes[i] - offset - 2;
             }
 
             for (size_t i = 0; i < sizes.size(); ++i)
             {
-                const auto last = sizes[i] - 1;
-                if (last)
-                {
-                    ranges[i].first = ranges[i].second = last;
-                    forEachInRange(body, ranges, handler);
-                }
+                const auto last = ranges[i].first = ++ranges[i].second ;
+                forEachInRange(body, ranges, handler);
 
-                ranges[i].first = ranges[i].second = 0;
+                ranges[i].first = ranges[i].second = offset;
                 forEachInRange(body, ranges, handler);
 
                 ranges[i].second = last;
@@ -232,11 +252,24 @@ public:
         return heights.size();
     }
 
-private:
+    template <typename... Args>
+    size_t getHeightIndex(Args... args) const
+    {
+        assert(sizeof...(Args) == dimensions.size());
+        size_t i = 0;
+        size_t result = 0;
+
+        for (size_t value : {size_t(args)...})
+        {
+            result += dimensions[i++] * (value + 1);
+        }
+
+        return result;
+    }
 
 private:
 
-    std::vector<int> heights;
+    Heights heights;
     Sizes sizes;
     Sizes dimensions;
 };
@@ -261,6 +294,8 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
     std::vector<CellType> cells(m.getCellsCount());
     HeightsResult result(m.getCellsCount());
 
+    const auto& groundHeights = m.getHeights();
+
     auto isUnknowCell = [&](Index nearest)
     {
         return cells[nearest] == CellType::Unknown;
@@ -269,10 +304,10 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
     auto setWaterCell = [&](Index index)
     {
         assert(cells[index] == CellType::Unknown);
-        assert(m[index] < waterLevel);
+        assert(groundHeights[index] < waterLevel);
 
         cells[index] = CellType::Water;
-        result.heights[index] = waterLevel - m[index];
+        result.heights[index] = waterLevel - groundHeights[index];
         result.volume += result.heights[index];
         ++result.square;
 
@@ -287,7 +322,7 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
 
     auto setWaterOrGroundCell = [&](Index index)
     {
-        if (m[index] < waterLevel)
+        if (groundHeights[index] < waterLevel)
             setWaterCell(index);
         else
             setGroundCell(index);
@@ -299,7 +334,7 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
     {
         m.bfs(waterBorders, 0, [&](Index orig, Index index)
         {
-            assert(cells[index] != CellType::Ground || m[orig] < m[index]);
+            assert(cells[index] != CellType::Ground || groundHeights[orig] < groundHeights[index]);
             if (cells[index] == CellType::Unknown)
             {
                 setWaterOrGroundCell(index);
@@ -310,8 +345,8 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
 
         m.bfs(groundBorders, prevGroundBordersCount, [&](const Index& orig, const Index& index)
         {
-            assert(!(cells[index] == CellType::Water && m[index] > m[orig]));
-            if (cells[index] == CellType::Unknown && m[index] >= m[orig])
+            assert(!(cells[index] == CellType::Water && groundHeights[index] > groundHeights[orig]));
+            if (cells[index] == CellType::Unknown && groundHeights[index] >= groundHeights[orig])
             {
                 setGroundCell(index);
             }
@@ -324,7 +359,7 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
             if (!m.findNearest(index, isUnknowCell))
                 return true;
 
-            waterLevel = std::min(waterLevel, m[index]);
+            waterLevel = std::min(waterLevel, groundHeights[index]);
             return false;
         }), groundBorders.end());
 
@@ -332,13 +367,13 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
 
         for (auto groundBorderIndex : groundBorders)
         {
-            if (m[groundBorderIndex] == waterLevel)
+            if (groundHeights[groundBorderIndex] == waterLevel)
             {
                 m.forEachNearest(groundBorderIndex, [&](Index nearest)
                 {
                     if (cells[nearest] == CellType::Unknown)
                     {
-                        assert(m[nearest] < waterLevel);
+                        assert(groundHeights[nearest] < waterLevel);
                         setWaterCell(nearest);
                     }
                 });
@@ -413,6 +448,8 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
     std::vector<CellType> cells(m.getCellsCount());
     HeightsResult result(m.getCellsCount());
 
+    const auto& groundHeights = m.getHeights();
+
     auto isUnknowCell = [&](Index nearest)
     {
         return cells[nearest] == CellType::Unknown;
@@ -421,10 +458,10 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
     auto setWaterCell = [&](Index index)
     {
         assert(cells[index] == CellType::Unknown);
-        assert(m[index] < waterLevel);
+        assert(groundHeights[index] < waterLevel);
 
         cells[index] = CellType::Water;
-        result.heights[index] = waterLevel - m[index];
+        result.heights[index] = waterLevel - groundHeights[index];
         result.volume += result.heights[index];
         ++result.square;
 
@@ -439,13 +476,13 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
 
     auto setWaterOrGroundCell = [&](Index index)
     {
-        if (m[index] < waterLevel)
+        if (groundHeights[index] < waterLevel)
             setWaterCell(index);
         else
             setGroundCell(index);
     };
 
-    m.forEachBorderIndex(setWaterOrGroundCell);
+    m.forEachBorderIndex(setWaterOrGroundCell, 1);
 
     std::map<int, Indices> heightToIndices;
 
@@ -453,7 +490,7 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
     {
         m.bfs(waterBorders, 0, [&](Index orig, Index index)
         {
-            assert(cells[index] != CellType::Ground || m[orig] < m[index]);
+            assert(cells[index] != CellType::Ground || groundHeights[orig] < groundHeights[index]);
             if (cells[index] == CellType::Unknown)
             {
                 setWaterOrGroundCell(index);
@@ -464,8 +501,8 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
 
         m.bfs(groundBorders, 0, [&](const Index& orig, const Index& index)
         {
-            assert(!(cells[index] == CellType::Water && m[index] > m[orig]));
-            if (cells[index] == CellType::Unknown && m[index] >= m[orig])
+            assert(!(cells[index] == CellType::Water && groundHeights[index] > groundHeights[orig]));
+            if (cells[index] == CellType::Unknown && groundHeights[index] >= groundHeights[orig])
             {
                 setGroundCell(index);
             }
@@ -477,7 +514,7 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
 
             if (m.findNearest(index, isUnknowCell))
             {
-                heightToIndices[m[index]].push_back(index);
+                heightToIndices[groundHeights[index]].push_back(index);
             }
         }
 
@@ -492,12 +529,12 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
 
             for (auto groundBorderIndex : groundBorders)
             {
-                assert(m[groundBorderIndex] == waterLevel);
+                assert(groundHeights[groundBorderIndex] == waterLevel);
                 m.forEachNearest(groundBorderIndex, [&](Index nearest)
                 {
                     if (cells[nearest] == CellType::Unknown)
                     {
-                        assert(m[nearest] < waterLevel);
+                        assert(groundHeights[nearest] < waterLevel);
                         setWaterCell(nearest);
                     }
                 });
@@ -524,6 +561,8 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
 
     std::multimap<Height, std::pair<size_t, size_t>> heightsToRanges;
 
+    const auto& groundHeights = m.getHeights();
+
     auto isUnknowCell = [&](Index nearest)
     {
         return cells[nearest] == CellType::Unknown;
@@ -532,10 +571,10 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
     auto setWaterCell = [&](Index index)
     {
         assert(cells[index] == CellType::Unknown);
-        assert(m[index] < waterLevel);
+        assert(groundHeights[index] < waterLevel);
 
         cells[index] = CellType::Water;
-        result.heights[index] = waterLevel - m[index];
+        result.heights[index] = waterLevel - groundHeights[index];
         result.volume += result.heights[index];
         ++result.square;
 
@@ -550,19 +589,24 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
 
     auto setWaterOrGroundCell = [&](Index index)
     {
-        if (m[index] < waterLevel)
+        if (groundHeights[index] < waterLevel)
             setWaterCell(index);
         else
             setGroundCell(index);
     };
 
-    m.forEachBorderIndex(setWaterOrGroundCell);
+    m.forEachBorderIndex([&](Index index)
+    {
+        cells[index] = CellType::Invalid;
+    });
+
+    m.forEachBorderIndex(setWaterOrGroundCell, 1);
 
     while (prevGroundBordersCount < groundBorders.size() || !waterBorders.empty())
     {
         m.bfs(waterBorders, 0, [&](Index orig, Index index)
         {
-            assert(cells[index] != CellType::Ground || m[orig] < m[index]);
+            assert(cells[index] != CellType::Ground || groundHeights[orig] < groundHeights[index]);
             if (cells[index] == CellType::Unknown)
             {
                 setWaterOrGroundCell(index);
@@ -573,8 +617,8 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
 
         m.bfs(groundBorders, prevGroundBordersCount, [&](const Index& orig, const Index& index)
         {
-            assert(!(cells[index] == CellType::Water && m[index] > m[orig]));
-            if (cells[index] == CellType::Unknown && m[index] >= m[orig])
+            assert(!(cells[index] == CellType::Water && groundHeights[index] > groundHeights[orig]));
+            if (cells[index] == CellType::Unknown && groundHeights[index] >= groundHeights[orig])
             {
                 setGroundCell(index);
             }
@@ -589,10 +633,10 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
         {
             std::sort(groundBorders.begin() + prevGroundBordersCount, groundBorders.end(), [&](Index a, Index b)
             {
-                return m[a] < m[b];
+                return groundHeights[a] < groundHeights[b];
             });
 
-            heightsToRanges.emplace(m[groundBorders[prevGroundBordersCount]], std::make_pair(prevGroundBordersCount, groundBorders.size()));
+            heightsToRanges.emplace(groundHeights[groundBorders[prevGroundBordersCount]], std::make_pair(prevGroundBordersCount, groundBorders.size()));
         }
 
         while (!heightsToRanges.empty() && waterBorders.empty())
@@ -604,13 +648,13 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
                 auto range = it->second;
                 it = heightsToRanges.erase(it);
 
-                for (; range.first < range.second && m[groundBorders[range.first]] == waterLevel; ++range.first)
+                for (; range.first < range.second && groundHeights[groundBorders[range.first]] == waterLevel; ++range.first)
                 {
                     m.forEachNearest(groundBorders[range.first], [&](Index nearest)
                     {
                         if (cells[nearest] == CellType::Unknown)
                         {
-                            assert(m[nearest] < waterLevel);
+                            assert(groundHeights[nearest] < waterLevel);
                             setWaterCell(nearest);
                         }
                     });
@@ -618,9 +662,9 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
 
                 if (range.first < range.second)
                 {
-                    assert(m[groundBorders[range.first]] > waterLevel);
+                    assert(groundHeights[groundBorders[range.first]] > waterLevel);
 
-                    heightsToRanges.emplace(m[groundBorders[range.first]], range);
+                    heightsToRanges.emplace(groundHeights[groundBorders[range.first]], range);
                     it = heightsToRanges.begin();
                 }
 

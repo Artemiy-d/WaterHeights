@@ -129,17 +129,24 @@ void Widget::updateImage()
     ColorCache waterColors(QColor(Qt::blue).lighter(120));
     ColorCache groundColors(Qt::gray);
 
-    auto index = 0;
+    const auto& groundHeights = groundMap->getHeights();
+
     const auto w = width();
-    for (int i = 0; i < height(); ++i)
+    const auto h = height();
+
+    auto index = w + 3;
+    for (int i = 0; i < h; ++i)
     {
         auto line = (QRgb*)image.scanLine(i);
+
         for (int j = 0; j < w; ++j)
         {
             line[j] = (waterHeights[index] ? waterColors : groundColors)
-                      (waterHeights[index] ? waterHeights[index] : (*groundMap)[index]);
-            ++index;
+                      (waterHeights[index] ? waterHeights[index] : groundHeights[index]);
+            index = ++index;
         }
+
+        index += 2;
     }
 
     const auto t2 = std::chrono::steady_clock::now();
@@ -148,7 +155,7 @@ void Widget::updateImage()
 
     setWindowTitle(QString("Volume: %1; Square: %2; CalcTime: %3; ImageTime: %4;").arg(
                        QString::number(waterResult.volume),
-                       QString::number(float(waterResult.square) / waterHeights.size()),
+                       QString::number(float(waterResult.square) / (w * h)),
                        QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count()),
                        QString::number(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count())));
 
@@ -168,10 +175,10 @@ void Widget::mouseMoveEvent(QMouseEvent *event)
 void Widget::updateTooltip()
 {
     const auto pos = mapFromGlobal(QCursor::pos());
-    const auto index = width() * pos.y() + pos.x();
+    const auto index = groundMap->getHeightIndex(pos.x(), pos.y());
     if (rect().contains(pos))
     {
-        QString text = "Ground: " + QString::number((*groundMap)[index]);
+        QString text = "Ground: " + QString::number(groundMap->getHeights()[index]);
 
         if (waterHeights[index])
         {
@@ -192,8 +199,6 @@ void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeA
     const auto rangeX = std::make_pair(std::max(0, data.pos.x() - data.brushSize), std::min(width() - 1, data.pos.x() + data.brushSize));
     const auto rangeY = std::make_pair(std::max(0, data.pos.y() - data.brushSize), std::min(height() - 1, data.pos.y() + data.brushSize));
 
-    auto w = width();
-
     for (int x = rangeX.first; x <= rangeX.second; ++x)
         for (int y = rangeY.first; y <= rangeY.second; ++y)
         {
@@ -201,7 +206,7 @@ void Widget::changeMap(const MapChangeData& data, bool updateUI, bool addChangeA
 
             if (r <= data.brushSize)
             {
-                (*groundMap)[y * w + x] += data.k * (data.brushSize + 2 - r) / 2;
+               groundMap->getHeight(x, y) += data.k * (data.brushSize + 2 - r) / 2;
             }
         }
 
@@ -228,23 +233,22 @@ void Widget::setHardCase()
     for (int y = 0; y < h; y += 2)
        for (int x = 0; x < w; x += 2)
        {
-           auto base = w * y + x;
-           (*groundMap)[base + 1 + w] = groundLevel++;
-           (*groundMap)[base] = groundLevel;
-           (*groundMap)[base + 1] = groundLevel;
-           (*groundMap)[base + w] = groundLevel;
+           groundMap->getHeight(x + 1, y + 1) = groundLevel++;
+           groundMap->getHeight(x, y) = groundLevel;
+           groundMap->getHeight(x + 1, y) = groundLevel;
+           groundMap->getHeight(x, y + 1) = groundLevel;
        }
 
     if (w & 1)
     {
         for (int y = 0; y < h; ++y)
-            (*groundMap)[w * (y + 1) - 1] = groundLevel;
+            groundMap->getHeight(w - 1, y) = groundLevel;
     }
 
     if (h & 1)
     {
         for (int x = 0; x < w; ++x)
-           (*groundMap)[w * (h - 1) + x] = groundLevel;
+           groundMap->getHeight(x, h - 1) = groundLevel;
     }
 
     onMapReseted();
@@ -259,11 +263,10 @@ void Widget::setWorstCase()
 
     const int delta = w / 2 + 2;
 
-    size_t index = 0;
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
         {
-            (*groundMap)[index++] = (x + y) & 1 ? ++groundLevel : groundLevel - delta;
+            groundMap->getHeight(x, y) = (x + y) & 1 ? ++groundLevel : groundLevel - delta;
         }
 
     onMapReseted();
@@ -271,8 +274,13 @@ void Widget::setWorstCase()
 
 void Widget::setRandomCase()
 {
-    for (size_t i = 0; i < groundMap->getCellsCount(); ++i)
-        (*groundMap)[i] = Distribution(0, 100)(randGen);
+    auto w = width();
+    auto h = height();
+
+
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            groundMap->getHeight(x, y) = Distribution(0, 100)(randGen);
 
     onMapReseted();
 }
