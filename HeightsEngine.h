@@ -21,19 +21,6 @@ enum class CellType
     Invalid
 };
 
-template <typename Container, typename... Args>
-auto getDefaultContainer(Args&&... args) -> decltype(Container(args...))
-{
-    return Container(std::forward<Args>(args)...);
-}
-
-template <typename Container>
-Container getDefaultContainer(...)
-{
-    return {};
-}
-
-
 template <template <class...> class Container>
 class Map
 {
@@ -42,7 +29,7 @@ public:
 
     Map(Sizes s) :
         sizes(std::move(s)),
-        dimensions(getDefaultContainer<Sizes>(sizes.size()))
+        dimensions(sizes)
     {
         if (!dimensions.empty())
         {
@@ -152,26 +139,26 @@ public:
     }
 
     template <typename Handler>
-    void forEachInRange(Container<size_t>& body, const Container<std::pair<size_t, size_t>>& ranges, Handler&& handler) const
+    void forEachInRange(Sizes& body, const Sizes& first, const Sizes& last, Handler&& handler) const
     {
         Index index = 0;
-        for (size_t i = 0; i < ranges.size(); ++i)
+        for (size_t i = 0; i < first.size(); ++i)
         {
-            assert(ranges[i].first <= ranges[i].second);
-            body[i] = ranges[i].first;
+            assert(first[i] <= last[i]);
+            body[i] = first[i];
             index += dimensions[i] * body[i];
         }
 
-        for (size_t i = 0; i < ranges.size(); )
+        for (size_t i = 0; i < first.size(); )
         {
             handler(index);
 
-            for (i = 0; i < ranges.size(); )
+            for (i = 0; i < first.size(); )
             {
-                if (body[i] == ranges[i].second)
+                if (body[i] == last[i])
                 {
-                    body[i] = ranges[i].first;
-                    index -= (ranges[i].second - body[i]) * dimensions[i];
+                    body[i] = first[i];
+                    index -= (last[i] - body[i]) * dimensions[i];
                     ++i;
                 }
                 else
@@ -187,36 +174,37 @@ public:
     template <typename Handler>
     void forEachBorderIndex(Handler&& handler, size_t offset = 0) const
     {
-        auto body = getDefaultContainer<Container<size_t>>(sizes.size());
-        auto ranges = getDefaultContainer<Container<std::pair<size_t, size_t>>>(sizes.size());
+        auto body = sizes;
+        auto first = sizes;
+        auto last = sizes;
 
         if (std::any_of(sizes.begin(), sizes.end(), std::bind(std::less<size_t>(), std::placeholders::_1, size_t(3 + offset * 2))))
         {
             for (size_t i = 0; i < sizes.size(); ++i)
             {
-                ranges[i].first = offset;
-                ranges[i].second = sizes[i] - offset - 1;
+                first[i] = offset;
+                last[i] -= offset + 1;
             }
 
-            forEachInRange(body, ranges, std::forward<Handler>(handler));
+            forEachInRange(body, first, last, std::forward<Handler>(handler));
         }
         else
         {
             for (size_t i = 0; i < sizes.size(); ++i)
             {
-                ranges[i].first = offset + 1;
-                ranges[i].second = sizes[i] - offset - 2;
+                first[i] = offset + 1;
+                last[i] -= offset + 2;
             }
 
             for (size_t i = 0; i < sizes.size(); ++i)
             {
-                const auto last = ranges[i].first = ++ranges[i].second ;
-                forEachInRange(body, ranges, handler);
+                const auto temp = first[i] = ++last[i] ;
+                forEachInRange(body, first, last, handler);
 
-                ranges[i].first = ranges[i].second = offset;
-                forEachInRange(body, ranges, handler);
+                first[i] = last[i] = offset;
+                forEachInRange(body, first, last, handler);
 
-                ranges[i].second = last;
+                last[i] = temp;
             }
         }
     }
@@ -597,6 +585,7 @@ HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
 
     m.forEachBorderIndex([&](Index index)
     {
+        result.heights[index] = -1;
         cells[index] = CellType::Invalid;
     });
 
