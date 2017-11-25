@@ -9,10 +9,10 @@
 template <typename ValueType>
 using Array2 = std::array<ValueType, 2>;
 
-template <template <class...> class Container>
+template <template <class...> class Container, typename HeightsProvider>
 class Map;
 
-using UIMap = Map<Array2>;
+using UIMap = Map<Array2, std::vector<int>>;
 
 class QShortcut;
 

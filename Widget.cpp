@@ -13,7 +13,74 @@
 #include <unordered_map>
 
 
+class ExtendedHeights
+{
+public:
+    using value_type = size_t;
+
+    ExtendedHeights(size_t s, size_t h = 0) :
+        height(h + 2),
+        base(s)
+    {}
+
+    void resize(size_t size)
+    {
+        base.resize(size);
+    }
+
+    size_t operator [] (size_t index) const
+    {
+        assert(height > 2);
+        return base[index] ? std::numeric_limits<size_t>::max() : index % height;
+    }
+
+    decltype(std::declval<std::vector<bool>>()[0]) operator [] (size_t index)
+    {
+        return base[index];
+    }
+
+    size_t size() const
+    {
+        return base.size();
+    }
+
+private:
+    size_t height;
+    std::vector<bool> base;
+};
+
+template <typename T>
+using Array3 = std::array<T, 3>;
+using Map3 = Map<Array3, ExtendedHeights>;
+
+
 using Distribution = std::uniform_int_distribution<>;
+
+Map3 createMap3(const UIMap& m)
+{
+    int mx = std::numeric_limits<int>::min();
+    int mn = std::numeric_limits<int>::max();
+    for (size_t x = 0; x < m.getSize(0); ++x)
+        for (size_t y = 0; y < m.getSize(1); ++y)
+        {
+            const auto h = m.getHeight(x, y);
+            if (h < mn)
+                mn = h;
+            if (h > mx)
+                mx = h;
+        }
+
+    Map3 result({{m.getSize(0), m.getSize(1), size_t(mx - mn + 1)}}, 0, size_t(mx - mn + 1));
+
+    for (size_t x = 0; x < result.getSize(0); ++x)
+        for (size_t y = 0; y < result.getSize(1); ++y)
+        {
+            const auto h = size_t(m.getHeight(x, y) - mn);
+            for (size_t z = 0; z < h; ++z)
+                result.getHeight(x, y, z) = true;
+        }
+    return result;
+}
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent),
@@ -91,7 +158,7 @@ Widget::~Widget()
 
 void Widget::resizeEvent(QResizeEvent *)
 {
-    groundMap.reset(new UIMap({static_cast<unsigned int>(width()), static_cast<unsigned int>(height())}));
+    groundMap.reset(new UIMap({static_cast<size_t>(width()), static_cast<size_t>(height())}));
     image = QImage(size(), QImage::Format_RGB32);
 
     onMapReseted();
@@ -153,6 +220,11 @@ void Widget::updateImage()
 
     setToolTip({});
 
+  //  auto m3 = createMap3(*groundMap);
+
+//    auto m3Res = calculateWater3(m3);
+
+    //assert(m3Res.square == waterResult.volume);
     setWindowTitle(QString("Volume: %1; Square: %2; CalcTime: %3; ImageTime: %4;").arg(
                        QString::number(waterResult.volume),
                        QString::number(float(waterResult.square) / (w * h)),

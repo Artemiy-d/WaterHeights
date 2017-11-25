@@ -10,8 +10,6 @@
 
 using Index = size_t;
 using Indices = std::vector<Index>;
-using Height = int;
-using Heights = std::vector<Height>;
 
 enum class CellType
 {
@@ -21,13 +19,17 @@ enum class CellType
     Invalid
 };
 
-template <template <class...> class Container>
+template <template <class...> class Container, typename HeightsProvider>
 class Map
 {
 public:
-    using Sizes = Container<unsigned int>;
+    using Sizes = Container<size_t>;
+    using Heights = HeightsProvider;
+    using Height = typename Heights::value_type;
 
-    Map(Sizes s) :
+    template <typename... Args>
+    Map(Sizes s, Args&&... args) :
+        heights(std::forward<Args>(args)...),
         sizes(std::move(s)),
         dimensions(sizes)
     {
@@ -51,24 +53,24 @@ public:
 
     size_t getSubIndex(Index index, size_t number) const
     {
-        return (index / getDim(number)) % sizes[number];
+        return (index / dimensions[number]) % sizes[number];
     }
 
     template <typename... Args>
-    Height getHeight (Args... args) const
+    Height getHeight(Args... args) const
     {
         return heights[getHeightIndex(args...)];
     }
 
     template <typename... Args>
-    Height& getHeight (Args... args)
+    decltype(std::declval<Heights>()[0]) getHeight(Args... args)
     {
         return heights[getHeightIndex(args...)];
     }
 
-    size_t getDim(size_t number) const
+    size_t getSize(size_t number) const
     {
-        return dimensions[number];
+        return sizes[number] - 2;
     }
 
     const Heights& getHeights() const
@@ -262,25 +264,25 @@ private:
     Sizes dimensions;
 };
 
-
+template <typename Heights>
 struct HeightsResult
 {
     HeightsResult(size_t mapSize) : heights(mapSize) {}
 
     Heights heights;
-    Height volume = 0;
+    size_t volume = 0;
     size_t square = 0;
 };
 
 template <typename HeightsMap>
-HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
+HeightsResult<typename HeightsMap::Heights> calculateWater(const HeightsMap& m, int waterLevel = 0)
 {
     Indices groundBorders;
     Indices waterBorders;
 
     size_t prevGroundBordersCount = 0;
     std::vector<CellType> cells(m.getCellsCount());
-    HeightsResult result(m.getCellsCount());
+    HeightsResult<typename HeightsMap::Heights> result(m.getCellsCount());
 
     const auto& groundHeights = m.getHeights();
 
@@ -427,14 +429,14 @@ HeightsResult calculateWater(const HeightsMap& m, int waterLevel = 0)
 }
 
 template <typename HeightsMap>
-HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
+HeightsResult<typename HeightsMap::Heights> calculateWater2(const HeightsMap& m, int waterLevel = 0)
 {
     Indices groundBorders;
     Indices waterBorders;
 
     size_t prevGroundBordersCount = 0;
     std::vector<CellType> cells(m.getCellsCount());
-    HeightsResult result(m.getCellsCount());
+    HeightsResult<typename HeightsMap::Heights> result(m.getCellsCount());
 
     const auto& groundHeights = m.getHeights();
 
@@ -538,16 +540,16 @@ HeightsResult calculateWater2(const HeightsMap& m, int waterLevel = 0)
 }
 
 template <typename HeightsMap>
-HeightsResult calculateWater3(const HeightsMap& m, int waterLevel = 0)
+HeightsResult<typename HeightsMap::Heights> calculateWater3(const HeightsMap& m, typename HeightsMap::Height waterLevel = 0)
 {
     Indices groundBorders;
     Indices waterBorders;
 
     size_t prevGroundBordersCount = 0;
     std::vector<CellType> cells(m.getCellsCount());
-    HeightsResult result(m.getCellsCount());
+    HeightsResult<typename HeightsMap::Heights> result(m.getCellsCount());
 
-    std::multimap<Height, std::pair<size_t, size_t>> heightsToRanges;
+    std::multimap<typename HeightsMap::Height, std::pair<size_t, size_t>> heightsToRanges;
 
     const auto& groundHeights = m.getHeights();
 
