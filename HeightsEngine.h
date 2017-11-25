@@ -615,10 +615,14 @@ HeightsResult<typename HeightsMap::Heights> calculateWater3(const HeightsMap& m,
             }
         });
 
+        auto sz = groundBorders.size();
+
         groundBorders.erase(std::remove_if(groundBorders.begin() + prevGroundBordersCount, groundBorders.end(), [&](Index index)
         {
             return !m.findNearest(index, isUnknowCell);
         }), groundBorders.end());
+
+        sz = groundBorders.size();
 
         if (prevGroundBordersCount < groundBorders.size())
         {

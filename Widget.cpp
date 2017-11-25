@@ -31,7 +31,7 @@ public:
     size_t operator [] (size_t index) const
     {
         assert(height > 2);
-        return base[index] ? std::numeric_limits<size_t>::max() : index % height;
+        return base[index] ? 100500 : index % height;
     }
 
     decltype(std::declval<std::vector<bool>>()[0]) operator [] (size_t index)
@@ -70,14 +70,28 @@ Map3 createMap3(const UIMap& m)
                 mx = h;
         }
 
-    Map3 result({{m.getSize(0), m.getSize(1), size_t(mx - mn + 1)}}, 0, size_t(mx - mn + 1));
+    Map3 result({{size_t(mx - mn + 1), m.getSize(0), m.getSize(1)}}, 0, size_t(mx - mn + 1));
 
-    for (size_t x = 0; x < result.getSize(0); ++x)
-        for (size_t y = 0; y < result.getSize(1); ++y)
+    for (size_t x = 0; x < result.getSize(1); ++x)
+        for (size_t y = 0; y < result.getSize(2); ++y)
         {
             const auto h = size_t(m.getHeight(x, y) - mn);
             for (size_t z = 0; z < h; ++z)
-                result.getHeight(x, y, z) = true;
+                result.getHeight(z, x, y) = true;
+
+            for (size_t z = 0; z < result.getSize(0); ++z)
+            {
+                if (z < h)
+                {
+                    assert(result.getHeights()[ result.getHeightIndex(z, x, y) ] == 100500);
+                }
+                else
+                {
+                    auto i = result.getHeightIndex(z, x, y);
+                    auto t = result.getHeights()[i];
+                    assert(t == z + 1);
+                }
+            }
         }
     return result;
 }
@@ -222,7 +236,7 @@ void Widget::updateImage()
 
   //  auto m3 = createMap3(*groundMap);
 
-//    auto m3Res = calculateWater3(m3);
+  //  auto m3Res = calculateWater3(m3);
 
     //assert(m3Res.square == waterResult.volume);
     setWindowTitle(QString("Volume: %1; Square: %2; CalcTime: %3; ImageTime: %4;").arg(
