@@ -3,7 +3,6 @@
 #include <QWidget>
 #include <random>
 
-
 #include "MapChagnges.h"
 
 template <typename ValueType>
@@ -82,5 +81,5 @@ private:
 
     QShortcut* undoShortcut;
     QShortcut* redoShortcut;
-};
+}; // Widget
 
