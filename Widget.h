@@ -81,5 +81,5 @@ private:
 
     QShortcut* undoShortcut;
     QShortcut* redoShortcut;
-}; // Widget
+};
 
